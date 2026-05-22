@@ -31,10 +31,16 @@ class Database:
                     fraza TEXT NOT NULL,
                     min_cena REAL DEFAULT 0,
                     max_cena REAL DEFAULT 999999,
+                    channel_id INTEGER DEFAULT 0,
                     active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # migracja: dodaj kolumnę channel_id jeśli nie istnieje
+            try:
+                conn.execute("ALTER TABLE searches ADD COLUMN channel_id INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,11 +112,11 @@ class Database:
             print(f"  ⚠️ DB get_stats error: {e}")
             return {"total": 0, "by_service": {}}
 
-    def add_search(self, fraza: str, min_cena: float, max_cena: float) -> int:
+    def add_search(self, fraza: str, min_cena: float, max_cena: float, channel_id: int = 0) -> int:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(
-                "INSERT INTO searches (fraza, min_cena, max_cena) VALUES (?, ?, ?)",
-                (fraza, min_cena, max_cena),
+                "INSERT INTO searches (fraza, min_cena, max_cena, channel_id) VALUES (?, ?, ?, ?)",
+                (fraza, min_cena, max_cena, channel_id),
             )
             conn.commit()
             return cur.lastrowid
