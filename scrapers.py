@@ -1,6 +1,7 @@
 import re
 import hashlib
 import urllib.parse
+from datetime import datetime
 
 try:
     import tls_client
@@ -105,11 +106,21 @@ def scrape_olx(fraza: str, min_cena: float, max_cena: float) -> list[dict]:
             if not href.startswith("http"):
                 href = "https://www.olx.pl" + href
 
+            # Wyciągnij datę z location-date (format: "Miasto, dzisiaj o 14:30")
+            loc_text = loc_tag.get_text(strip=True) if loc_tag else ""
+            data_dodania = "—"
+            if loc_text:
+                for sep in [",", "•", "-"]:
+                    if sep in loc_text:
+                        data_dodania = loc_text.split(sep, 1)[1].strip()
+                        break
+
             offers.append({
                 "id": _make_id(href),
                 "tytul": title_tag.get_text(strip=True),
                 "cena": price_text,
                 "lokalizacja": loc_tag.get_text(strip=True) if loc_tag else "—",
+                "data": data_dodania,
                 "link": href,
                 "zdjecie": img_tag.get("src") if img_tag else None,
                 "serwis": "OLX",
@@ -167,11 +178,26 @@ def scrape_vinted(fraza: str, min_cena: float, max_cena: float) -> list[dict]:
 
             url = item.get("url", "")
             photo_data = item.get("photo", {}) or {}
+
+            # Data dodania z API Vinted
+            created_ts = item.get("created_at_ts") or item.get("created_at")
+            data_dodania = "—"
+            if created_ts:
+                try:
+                    if isinstance(created_ts, (int, float)):
+                        data_dodania = datetime.fromtimestamp(created_ts).strftime("%d.%m.%Y %H:%M")
+                    else:
+                        dt = datetime.fromisoformat(str(created_ts).replace("Z", "+00:00"))
+                        data_dodania = dt.strftime("%d.%m.%Y %H:%M")
+                except Exception:
+                    data_dodania = str(created_ts)
+
             offers.append({
                 "id": str(item.get("id", _make_id(url))),
                 "tytul": item.get("title", "Brak tytułu"),
                 "cena": f"{price_amount} {price_currency}",
                 "lokalizacja": "Vinted",
+                "data": data_dodania,
                 "link": url,
                 "zdjecie": photo_data.get("url") if photo_data else None,
                 "serwis": "Vinted",
@@ -220,6 +246,7 @@ def scrape_allegro(fraza: str, min_cena: float, max_cena: float) -> list[dict]:
             title_tag = article.select_one("h2, [data-role='offer-title']")
             price_tag = article.select_one("span._1svub, [data-role='price']")
             img_tag = article.select_one("img")
+            date_tag = article.select_one("time, [datetime], .mgn2_14, [data-testid='offer-date']")
 
             if not (link_tag and title_tag):
                 continue
@@ -242,11 +269,25 @@ def scrape_allegro(fraza: str, min_cena: float, max_cena: float) -> list[dict]:
             if "allegro.pl/oferta/" not in href:
                 continue
 
+            # Data dodania
+            data_dodania = "—"
+            if date_tag:
+                dt_attr = date_tag.get("datetime", "")
+                if dt_attr:
+                    try:
+                        dt = datetime.fromisoformat(dt_attr.replace("Z", "+00:00"))
+                        data_dodania = dt.strftime("%d.%m.%Y %H:%M")
+                    except Exception:
+                        data_dodania = date_tag.get_text(strip=True)
+                else:
+                    data_dodania = date_tag.get_text(strip=True)
+
             offers.append({
                 "id": _make_id(href),
                 "tytul": title_tag.get_text(strip=True),
                 "cena": price_text if price_text else "—",
                 "lokalizacja": "Allegro",
+                "data": data_dodania,
                 "link": href,
                 "zdjecie": img_tag.get("src") if img_tag else None,
                 "serwis": "Allegro",
