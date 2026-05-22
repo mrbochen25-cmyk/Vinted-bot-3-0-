@@ -151,20 +151,21 @@ async def check_once(channel, fraza: str, min_cena: float, max_cena: float, sile
 # ─── MONITOR LOOP ────────────────────────────────────────────────────────────
 @tasks.loop(seconds=INTERWAL_SEK)
 async def monitor_loop():
-    channel = bot.get_channel(DISCORD_CHANNEL_ID)
-    if not channel:
-        db.log("ERROR", f"Nie znaleziono kanału ID {DISCORD_CHANNEL_ID}")
-        return
-
     searches = db.get_searches(active_only=True)
     if not searches:
         searches = [{
             "fraza": DEFAULT_FRAZA,
             "min_cena": DEFAULT_MIN,
             "max_cena": DEFAULT_MAX,
+            "channel_id": DISCORD_CHANNEL_ID,
         }]
 
     for s in searches:
+        ch_id = s.get("channel_id", 0) or DISCORD_CHANNEL_ID
+        channel = bot.get_channel(int(ch_id))
+        if not channel:
+            db.log("ERROR", f"Nie znaleziono kanału ID {ch_id} dla wyszukiwania '{s['fraza']}'")
+            continue
         await check_once(channel, s["fraza"], s["min_cena"], s["max_cena"], silent=True)
 
 
@@ -209,9 +210,11 @@ async def cmd_searches(ctx):
     embed = discord.Embed(title="🔍 Lista Wyszukiwań", color=0x9B59B6)
     for s in searches:
         status = "🟢" if s["active"] else "🔴"
+        ch_id = s.get("channel_id", 0)
+        channel_mention = f"<#{ch_id}>" if ch_id else "domyślny"
         embed.add_field(
             name=f"{status} ID {s['id']}: {s['fraza']}",
-            value=f"Cena: {s['min_cena']:.0f} - {s['max_cena']:.0f} PLN",
+            value=f"Cena: {s['min_cena']:.0f} - {s['max_cena']:.0f} PLN | Kanał: {channel_mention}",
             inline=False,
         )
     await ctx.send(embed=embed)
@@ -219,8 +222,11 @@ async def cmd_searches(ctx):
 
 @bot.command(name="add")
 async def cmd_add(ctx, fraza: str, min_cena: float, max_cena: float):
-    sid = db.add_search(fraza, min_cena, max_cena)
-    await ctx.send(f"✅ Dodano wyszukiwanie **ID {sid}**: {fraza} ({min_cena:.0f} - {max_cena:.0f} PLN)")
+    sid = db.add_search(fraza, min_cena, max_cena, channel_id=ctx.channel.id)
+    await ctx.send(
+        f"✅ Dodano wyszukiwanie **ID {sid}**: {fraza} ({min_cena:.0f} - {max_cena:.0f} PLN)\n"
+        f"📡 Wyniki będą wysyłane na <#{ctx.channel.id}>"
+    )
 
 
 @bot.command(name="remove")
