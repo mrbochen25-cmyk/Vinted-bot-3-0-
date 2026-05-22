@@ -1,9 +1,14 @@
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Baza w katalogu aplikacji (działa lokalnie i na Railway)
-DB_PATH = Path(__file__).parent / "bot.db"
+# Railway Volume = trwały dysk, montowany w /data
+# Lokalnie = w katalogu aplikacji
+if os.path.isdir("/data"):
+    DB_PATH = Path("/data") / "bot.db"
+else:
+    DB_PATH = Path(__file__).parent / "bot.db"
 
 
 class Database:
@@ -22,9 +27,15 @@ class Database:
                     cena TEXT,
                     link TEXT,
                     zdjecie TEXT,
+                    data TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # migracja: dodaj kolumnę data jeśli nie istnieje
+            try:
+                conn.execute("ALTER TABLE seen_offers ADD COLUMN data TEXT")
+            except sqlite3.OperationalError:
+                pass
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS searches (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,8 +78,8 @@ class Database:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """INSERT OR IGNORE INTO seen_offers
-                    (id, serwis, fraza, tytul, cena, link, zdjecie)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (id, serwis, fraza, tytul, cena, link, zdjecie, data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         offer["id"],
                         offer.get("serwis", ""),
@@ -77,6 +88,7 @@ class Database:
                         offer.get("cena", ""),
                         offer.get("link", ""),
                         offer.get("zdjecie", ""),
+                        offer.get("data", ""),
                     ),
                 )
                 conn.commit()
