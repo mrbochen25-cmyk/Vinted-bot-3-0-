@@ -2,8 +2,8 @@
   "discord_webhook": "",
   "discord_token": "",
   "discord_channel_id": 0,
-  "szukana_fraza": "oculusquest2",
-  "min_cena_pln": 300,
-  "maks_cena_pln": 500,
+  "szukana_fraza": "",
+  "min_cena_pln": ,
+  "maks_cena_pln": ,
   "interwal_sprawdzania_sek": 300
 }
